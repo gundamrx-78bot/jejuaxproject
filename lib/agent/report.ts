@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { COURSES, LEVEL, STUCK } from "../data";
 import { applyState, summarize } from "../courses";
+import type { Video } from "../youtube";
 import { consistency, hasForeignScript, ruleLevel, STUCK_ORDER } from "../intake";
 
 // 안전장치: AI가 문항 번호(B2, D1 …)를 그대로 쓰면 방문자가 알아볼 수 있는 말로 바꾼다.
@@ -43,6 +44,7 @@ export const ReportInput = z.object({
   roadmap: arr(z.object({ title: str(100), detail: str(450), minutes: z.number().nullish() }), 6, 2),
   firstPractice: z.object({ title: str(120), prompt: str(700).optional() }),
   dataGaps: strList(300, 8),
+  videos: arr(z.object({ videoId: str(40), reason: str(200) }), 3).optional(),
 });
 export type ReportInput = z.infer<typeof ReportInput>;
 
@@ -51,7 +53,7 @@ export const taskScoreOf = (t?: ReportInput["taskRubric"]) =>
 
 /** 모델이 낸 보고서를 검증하고, 교육 정보는 모델 문장이 아닌 실제 데이터로 채운다.
  *  단계는 코드가 계산한 규칙 단계(행동 단계 + 과제 점수)를 기준으로, 모델 판단은 ±1단계까지만 허용한다. */
-export function finalizeReport(r: ReportInput, ctx: { behavior: number; hasTask: boolean; defaultStuck: string }) {
+export function finalizeReport(r: ReportInput, ctx: { behavior: number; hasTask: boolean; defaultStuck: string; videos?: Map<string, Video> }) {
   const stuckCode = r.primaryStuck in STUCK && r.primaryStuck !== "other" ? r.primaryStuck : ctx.defaultStuck;
   if (hasForeignScript(JSON.stringify(r))) throw new Error("report contains foreign script");
   const taskScore = ctx.hasTask ? taskScoreOf(r.taskRubric) : null;
@@ -79,6 +81,8 @@ export function finalizeReport(r: ReportInput, ctx: { behavior: number; hasTask:
     roadmap: r.roadmap.map((s) => ({ title: plain(s.title), detail: plain(s.detail), ...(s.minutes ? { minutes: Math.max(5, Math.round(s.minutes)) } : {}) })),
     firstPractice: { title: plain(r.firstPractice.title), ...(r.firstPractice.prompt ? { prompt: r.firstPractice.prompt } : {}) },
     dataGaps: r.dataGaps.map(plain),
+    // 영상 정보는 모델 문장이 아니라 이번 검색에서 실제로 받은 API 결과로만 채운다(없는 영상은 버린다)
+    videos: (r.videos ?? []).flatMap((v) => { const f = ctx.videos?.get(v.videoId); return f ? [{ ...f, reason: plain(v.reason) }] : []; }),
     droppedCourseIds: dropped,
   };
 }

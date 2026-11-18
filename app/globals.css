@@ -71,3 +71,46 @@ ul.plain { margin: 6px 0 0; padding-left: 18px; } ul.plain li { margin: 4px 0; }
 /* 지도 링크 버튼 */
 .btn.sm { font-size: 13px; padding: 4px 12px; text-decoration: none; display: inline-block; }
 .maplinks { margin: 6px 0; }
+
+/* ---- 결과 화면: 읽기 쉽게 ---- */
+body { font-size: 17px; line-height: 1.75; }
+.wrap { max-width: 760px; }
+section[id] { scroll-margin-top: 120px; }
+.eyebrow { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .02em; margin: 0 0 8px; }
+.hero { border-width: 2px; border-color: var(--brand); }
+.hero-level { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.hero-num { width: 64px; height: 64px; border-radius: 50%; background: var(--brand); color: var(--surface); font-size: 34px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.hero h2 { font-size: 24px; margin: 0; }
+.dots { display: flex; gap: 6px; margin-top: 8px; }
+.dots i { width: 28px; height: 8px; border-radius: 4px; background: var(--line); }
+.dots i.on { background: var(--brand); }
+.hero-sum { font-size: 18px; line-height: 1.8; margin: 12px 0; }
+.facts { list-style: none; padding: 0; margin: 12px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.facts li { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--muted); }
+.facts b { display: block; font-size: 17px; color: var(--ink); }
+.jump { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; position: sticky; top: 56px; z-index: 5; background: var(--bg); padding: 8px 0; }
+.jump a { text-decoration: none; font-size: 14px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--surface); }
+.jump a:hover { border-color: var(--brand); }
+details.more { margin: 12px 0 0; border-top: 1px dashed var(--line); padding-top: 10px; }
+details.more summary { cursor: pointer; font-weight: 700; font-size: 15px; color: var(--brand); }
+.more-body { margin-top: 8px; font-size: 15px; }
+.todo { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); border-color: var(--accent); }
+.todo-title { font-size: 19px; font-weight: 700; margin: 4px 0 8px; line-height: 1.5; }
+.item { padding: 16px 0; border-top: 1px solid var(--line); }
+.sec h2 + .hint + .item, .sec h2 + .item { border-top: 0; padding-top: 4px; }
+.item h3 { font-size: 18px; margin: 0 0 6px; line-height: 1.45; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.reason { margin: 8px 0; }
+.fix { margin: 8px 0; background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+.fix b { display: block; font-size: 13px; color: var(--brand); }
+.meta2 { font-size: 14px; color: var(--muted); margin: 4px 0; }
+.whywrap { margin-top: 10px; }
+.whybox { margin-top: 6px; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 10px; padding: 12px 14px; font-size: 16px; }
+.whybox p { margin: 6px 0; }
+.steps2 { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.steps2 li { display: grid; grid-template-columns: 36px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.steps2 li:first-child { border-top: 0; }
+.steps2 li::before { counter-increment: s; content: counter(s); width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: var(--surface); display: grid; place-items: center; font-weight: 800; }
+.sec h2 { font-size: 20px; margin: 0 0 6px; }
+.sec > .hint { margin: 0 0 12px; }
+@media (max-width: 520px) { .hero-num { width: 52px; height: 52px; font-size: 28px; } .hero h2 { font-size: 21px; } .hero-sum { font-size: 17px; } .jump { top: 56px; } }

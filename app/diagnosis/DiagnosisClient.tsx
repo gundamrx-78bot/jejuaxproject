@@ -158,7 +158,7 @@ export default function DiagnosisClient({ options }: { options: Options }) {
             <button className="btn ghost" type="button" onClick={() => { abort.current?.abort(); setPhase("form"); }}>취소</button>
           </section>
         )}
-        {phase === "done" && report && <ReportView r={report} source={source} notice={notice} steps={steps} onReset={reset} />}
+        {phase === "done" && report && <ReportView r={report} source={source} notice={notice} steps={steps} jobText={a.jobText} onReset={reset} />}
       </>
     );
   }
@@ -212,69 +212,203 @@ export default function DiagnosisClient({ options }: { options: Options }) {
   );
 }
 
-function ReportView({ r, source, notice, steps, onReset }: { r: Report; source: "agent" | "rules"; notice: string; steps: Step[]; onReset: () => void }) {
-  const conf = { high: "근거 충분", medium: "근거 보통", low: "근거 약함" }[r.confidence];
+function Details({ summary, children, open }: { summary: string; children: React.ReactNode; open?: boolean }) {
+  return (
+    <details className="more" open={open}>
+      <summary>{summary}</summary>
+      <div className="more-body">{children}</div>
+    </details>
+  );
+}
+
+function CopyBtn({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button className="btn ghost sm" type="button" onClick={() => { try { navigator.clipboard?.writeText(text); setDone(true); setTimeout(() => setDone(false), 2000); } catch { /* 복사 실패는 무시 */ } }}>
+      {done ? "복사됐어요" : "질문 복사하기"}
+    </button>
+  );
+}
+
+// "왜 추천했나요?"를 AI에게 물어보는 버튼. 누를 때만 AI를 한 번 호출한다.
+function WhyButton({ kind, id, title, channel, reason, ctx }: { kind: "video" | "course"; id: string; title: string; channel?: string; reason: string; ctx: { jobText: string; level: string; stuck: string } }) {
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [text, setText] = useState("");
+  async function ask() {
+    setState("loading");
+    try {
+      const res = await fetch(API_BASE + "/api/diagnosis/why", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, id, title, channel: channel ?? "", reason, ...ctx }) });
+      const j = await res.json().catch(() => null);
+      if (!res.ok || !j?.text) throw new Error("no text");
+      setText(j.text); setState("done");
+    } catch { setState("error"); }
+  }
+  return (
+    <div className="whywrap" aria-live="polite">
+      {state === "idle" && <button className="btn ghost sm" type="button" onClick={ask}>AI에게 왜 추천했는지 물어보기</button>}
+      {state === "loading" && <span className="hint">AI가 설명을 쓰는 중이에요…</span>}
+      {state === "done" && (
+        <div className="whybox">
+          <strong>AI의 설명</strong>
+          <p>{text}</p>
+          <p className="hint">AI가 쓴 설명이라 틀릴 수 있어요. {kind === "video" ? "영상을 보기 전에" : "신청하기 전에"} 직접 한 번 확인해 주세요.</p>
+        </div>
+      )}
+      {state === "error" && (
+        <div className="whybox">
+          <p>지금은 AI 설명을 불러오지 못했어요. 대신 진단에 적힌 이유를 알려 드릴게요.</p>
+          <p>{reason}</p>
+          <button className="btn ghost sm" type="button" onClick={ask}>다시 물어보기</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReportView({ r, source, notice, steps, jobText, onReset }: { r: Report; source: "agent" | "rules"; notice: string; steps: Step[]; jobText: string; onReset: () => void }) {
+  const ctx = { jobText, level: r.level.code, stuck: r.primaryStuck.code };
+  const conf = { high: "진단 근거가 충분해요", medium: "진단 근거가 보통이에요", low: "진단 근거가 적어서 참고용이에요" }[r.confidence];
+  const lv = Number(r.level.code);
+  const hasConditional = r.recommendations.some((x) => x.verdict === "conditional");
+  const jumps = [
+    { id: "today", label: "오늘 할 일" },
+    { id: "why", label: "막힌 이유" },
+    ...(r.recommendations.length ? [{ id: "courses", label: "추천 교육" }] : []),
+    ...(r.videos.length ? [{ id: "videos", label: "추천 영상" }] : []),
+    { id: "steps", label: "배울 순서" },
+  ];
   return (
     <>
       {notice && <div className="notice" role="status">{notice}</div>}
       {source === "rules" && !notice && <div className="notice">AI 분석 없이 규칙만으로 계산한 결과예요.</div>}
-      <section className="card">
-        <div className="level"><b>{r.level.code}</b><span><strong>{r.level.name} 단계</strong> · 막힘: {r.primaryStuck.name}</span><span className="badge">{conf}</span></div>
-        <div className="bar" aria-hidden>{[0, 1, 2, 3, 4].map((n) => <i key={n} className={n <= Number(r.level.code) ? "on" : ""} />)}</div>
-        <p>{r.summary}</p>
-        <p className="meta">행동 단계 {r.behaviorLevel} · 과제 점수 {r.taskScore == null ? "건너뜀" : r.taskScore + "/5"} · 행동·과제 결과 {r.consistency}{r.ruleLevel.code !== r.level.code ? " · 규칙 단계 " + r.ruleLevel.code + "에서 AI가 조정" : ""}</p>
-        <h2>진단 근거</h2>
-        <ul className="plain">{r.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
-        {steps.length > 0 && <p className="meta">조사한 것: {steps.filter((s) => s.status === "done").map((s) => s.label).join(" → ")}</p>}
+
+      <section className="card hero" aria-labelledby="hero-title">
+        <p className="eyebrow">나의 AI 활용 단계</p>
+        <div className="hero-level">
+          <span className="hero-num" aria-hidden>{r.level.code}</span>
+          <div>
+            <h2 id="hero-title">{r.level.name} 단계</h2>
+            <div className="dots" role="img" aria-label={`5단계 중 ${lv + 1}단계`}>{[0, 1, 2, 3, 4].map((n) => <i key={n} className={n <= lv ? "on" : ""} />)}</div>
+          </div>
+        </div>
+        <p className="hero-sum">{r.summary}</p>
+        <ul className="facts">
+          <li>가장 큰 막힘<b>{r.primaryStuck.name}</b></li>
+          <li>추천 교육<b>{r.recommendations.length}개</b></li>
+          <li>추천 영상<b>{r.videos.length}개</b></li>
+        </ul>
+        <p className="hint">{conf}</p>
+        <Details summary="이렇게 진단했어요">
+          <ul className="plain">{r.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
+          <p className="hint">
+            {steps.filter((s) => s.status === "done").length > 0 ? "AI가 조사한 것: " + [...new Set(steps.filter((s) => s.status === "done").map((s) => s.label))].join(", ") + ". " : ""}
+            과제 점수는 {r.taskScore == null ? "건너뛰었어요" : `${r.taskScore}/5점이에요`}.
+          </p>
+        </Details>
       </section>
 
-      <section className="card">
-        <h2>막힌 지점과 해결 방향</h2>
+      <nav className="jump" aria-label="결과 바로가기">
+        {jumps.map((j) => <a key={j.id} href={`#${j.id}`}>{j.label}</a>)}
+      </nav>
+
+      <section id="today" className="card sec todo">
+        <h2>오늘 해 볼 한 가지</h2>
+        <p className="todo-title">{r.firstPractice.title}</p>
+        {r.firstPractice.prompt && (
+          <>
+            <p className="hint">아래 문장을 복사해서 평소 쓰는 AI에 붙여 넣어 보세요.</p>
+            <div className="copy">{r.firstPractice.prompt}</div>
+            <CopyBtn text={r.firstPractice.prompt} />
+          </>
+        )}
+      </section>
+
+      <section id="why" className="card sec">
+        <h2>왜 막혔을까요?</h2>
         {r.blockers.map((b, i) => (
-          <div className="q" key={i}><strong>{b.title}</strong><div className="meta">{b.why}</div><div>→ {b.fix}</div></div>
+          <div className="item" key={i}>
+            <h3>{b.title}</h3>
+            <p className="reason">{b.why}</p>
+            <p className="fix"><b>이렇게 해 보세요</b> {b.fix}</p>
+          </div>
         ))}
       </section>
 
-      <section className="card">
-        <h2>추천 교육 <span className="hint">(외부 교육기관 데이터 기준)</span></h2>
-        <p className="hint">교육 제목을 클릭하면 해당 기관의 사이트가 새 창으로 열려요. 신청 전에 접수 일정과 대상을 꼭 확인하세요.</p>
-        {r.recommendations.length === 0 && <p className="meta">지금 접수 중이면서 맞는 교육을 찾지 못했어요. 아래 학습 순서부터 시작하고, 행사 일정을 다시 확인해 보세요.</p>}
+      <section id="courses" className="card sec">
+        <h2>추천 교육</h2>
+        {r.recommendations.length === 0 ? (
+          <p className="hint">지금 접수 중이면서 맞는 교육을 찾지 못했어요. 아래 배울 순서부터 시작하고, 행사 일정을 다시 확인해 보세요.</p>
+        ) : (
+          <p className="hint">교육 이름을 누르면 해당 기관 사이트가 새 창으로 열려요.{hasConditional ? " '조건부 추천'은 정보가 부족해서 신청 전에 확인이 필요하다는 뜻이에요." : ""}</p>
+        )}
         {r.recommendations.map((rec) => {
           const a = APPLY[rec.course.applyState];
           const href = safeHref(rec.course.link);
           return (
-            <div className="q course" key={rec.courseId}>
+            <article className="item course" key={rec.courseId}>
               <h3>{href ? <a href={href} target="_blank" rel="noopener noreferrer">{rec.course.title} <span aria-hidden>↗</span></a> : rec.course.title}</h3>
-              {href && <div className="hint">{rec.course.linkKind === "calendar" ? "제목을 클릭하면 행사 일정(달력) 페이지로 넘어가요. 날짜에서 교육 이름을 찾아 주세요" : "제목을 클릭하면 해당 교육의 상세 페이지로 넘어가요"}</div>}
-              <div className="meta"><span className={`badge ${a.c}`}>{a.t}</span> {rec.verdict === "recommend" ? <span className="badge ok">추천</span> : <span className="badge warn">조건부 추천</span>} · {rec.course.org ?? "주최 미확인"}{rec.course.applyCloseAt ? ` · 접수 마감 ${rec.course.applyCloseAt}` : ""}{rec.course.venue ? ` · ${rec.course.venue}` : ""}{rec.course.cost ? ` · ${rec.course.cost}` : ""}</div>
+              {href && rec.course.linkKind === "calendar" && <p className="hint">행사 일정(달력) 페이지로 넘어가요. 날짜에서 교육 이름을 찾아 주세요.</p>}
+              <p className="badges">
+                <span className={`badge ${a.c}`}>{a.t}</span>
+                {rec.verdict === "recommend" ? <span className="badge ok">추천</span> : <span className="badge warn">조건부 추천</span>}
+              </p>
+              <p className="meta2">{[rec.course.org ?? "주최 미확인", rec.course.applyCloseAt ? `접수 마감 ${rec.course.applyCloseAt}` : "", rec.course.venue ?? "", rec.course.cost ?? ""].filter(Boolean).join(" · ")}</p>
               {rec.course.mapQuery && (
-                <div className="maplinks">
+                <p className="maplinks">
                   <span className="meta">위치 검색:</span>{" "}
                   <a className="btn ghost sm" href={kakaoMapUrl(rec.course.mapQuery)} target="_blank" rel="noopener noreferrer">카카오맵</a>{" "}
                   <a className="btn ghost sm" href={naverMapUrl(rec.course.mapQuery)} target="_blank" rel="noopener noreferrer">네이버지도</a>
-                </div>
+                </p>
               )}
-              <div>{rec.reason}</div>
-              {rec.cautions.length > 0 && <ul className="plain meta">{rec.cautions.map((c, i) => <li key={i}>{c}</li>)}</ul>}
-            </div>
+              <p className="reason">{rec.reason}</p>
+              {rec.cautions.length > 0 && (
+                <Details summary={`신청 전에 확인할 점 ${rec.cautions.length}가지`}>
+                  <ul className="plain">{rec.cautions.map((c, i) => <li key={i}>{c}</li>)}</ul>
+                </Details>
+              )}
+              <WhyButton kind="course" id={rec.courseId} title={rec.course.title} reason={rec.reason} ctx={ctx} />
+            </article>
           );
         })}
       </section>
 
-      <section className="card">
-        <h2>배울 순서</h2>
-        <ol className="plain">{r.roadmap.map((s, i) => <li key={i}><strong>{s.title}</strong>{s.minutes ? <span className="meta"> · 약 {s.minutes}분</span> : null}<div className="meta">{s.detail}</div></li>)}</ol>
-      </section>
+      {r.videos.length > 0 && (
+        <section id="videos" className="card sec">
+          <h2>함께 보면 좋은 영상</h2>
+          <p className="hint">제목을 누르면 유튜브로 넘어가요. 우리가 만든 영상이 아니라 외부 영상이에요.</p>
+          {r.videos.map((v) => (
+            <article className="item" key={v.id}>
+              <h3><a href={v.url} target="_blank" rel="noopener noreferrer">{v.title} <span aria-hidden>↗</span></a></h3>
+              <p className="meta2">{[v.channel, v.minutes ? `약 ${v.minutes}분` : ""].filter(Boolean).join(" · ")}</p>
+              <p className="reason">{v.reason}</p>
+              <WhyButton kind="video" id={v.id} title={v.title} channel={v.channel} reason={v.reason} ctx={ctx} />
+            </article>
+          ))}
+        </section>
+      )}
 
-      <section className="card">
-        <h2>오늘 해 볼 첫 실습</h2>
-        <strong>{r.firstPractice.title}</strong>
-        {r.firstPractice.prompt && <><div className="copy">{r.firstPractice.prompt}</div><button className="btn ghost" type="button" style={{ marginTop: 8 }} onClick={() => navigator.clipboard?.writeText(r.firstPractice.prompt ?? "")}>질문 복사</button></>}
+      <section id="steps" className="card sec">
+        <h2>이 순서로 배워 보세요</h2>
+        <ol className="steps2">
+          {r.roadmap.map((s, i) => (
+            <li key={i}>
+              <div>
+                <strong>{s.title}</strong>{s.minutes ? <span className="meta"> · 약 {s.minutes}분</span> : null}
+                <div className="reason">{s.detail}</div>
+              </div>
+            </li>
+          ))}
+        </ol>
       </section>
 
       {r.dataGaps.length > 0 && (
-        <section className="card"><h2>확인되지 않은 정보</h2><ul className="plain meta">{r.dataGaps.map((g, i) => <li key={i}>{g}</li>)}</ul></section>
+        <section className="card sec">
+          <Details summary="확인하지 못한 정보 보기">
+            <ul className="plain">{r.dataGaps.map((g, i) => <li key={i}>{g}</li>)}</ul>
+          </Details>
+        </section>
       )}
+
       <button className="btn ghost" type="button" onClick={onReset}>다시 진단하기</button>
     </>
   );
