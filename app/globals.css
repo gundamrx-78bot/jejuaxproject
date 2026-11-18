@@ -114,3 +114,12 @@ details.more summary { cursor: pointer; font-weight: 700; font-size: 15px; color
 .sec h2 { font-size: 20px; margin: 0 0 6px; }
 .sec > .hint { margin: 0 0 12px; }
 @media (max-width: 520px) { .hero-num { width: 52px; height: 52px; font-size: 28px; } .hero h2 { font-size: 21px; } .hero-sum { font-size: 17px; } .jump { top: 56px; } }
+
+/* 유튜브 영상 바로 보기 */
+.vembed { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; margin: 8px 0; }
+.vembed iframe, .vembed button, .vembed img { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.vembed button { padding: 0; cursor: pointer; background: #000; }
+.vembed img { object-fit: cover; opacity: .9; }
+.vembed button:hover img { opacity: 1; }
+.vembed .play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 72px; height: 50px; border-radius: 14px; background: rgba(230, 0, 0, .92); color: #fff; font-size: 22px; display: grid; place-items: center; }
+.vembed button:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }

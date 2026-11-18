@@ -265,6 +265,31 @@ function WhyButton({ kind, id, title, channel, reason, ctx }: { kind: "video" | 
   );
 }
 
+// 유튜브 영상을 이 화면에서 바로 재생한다. 처음엔 썸네일만 보여 주고, 재생 버튼을 누를 때 플레이어를 불러온다.
+// youtube-nocookie 주소를 써서 재생 전에는 유튜브 쿠키를 남기지 않는다.
+function VideoEmbed({ id, title }: { id: string; title: string }) {
+  const [play, setPlay] = useState(false);
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return null;
+  return (
+    <div className="vembed">
+      {play ? (
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`}
+          title={title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      ) : (
+        <button type="button" onClick={() => setPlay(true)} aria-label={`${title} 재생`}>
+          <img src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`} alt="" loading="lazy" />
+          <span className="play" aria-hidden>▶</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ReportView({ r, source, notice, steps, jobText, onReset }: { r: Report; source: "agent" | "rules"; notice: string; steps: Step[]; jobText: string; onReset: () => void }) {
   const ctx = { jobText, level: r.level.code, stuck: r.primaryStuck.code };
   const conf = { high: "진단 근거가 충분해요", medium: "진단 근거가 보통이에요", low: "진단 근거가 적어서 참고용이에요" }[r.confidence];
@@ -375,10 +400,12 @@ function ReportView({ r, source, notice, steps, jobText, onReset }: { r: Report;
       {r.videos.length > 0 && (
         <section id="videos" className="card sec">
           <h2>함께 보면 좋은 영상</h2>
-          <p className="hint">제목을 누르면 유튜브로 넘어가요. 우리가 만든 영상이 아니라 외부 영상이에요.</p>
+          <p className="hint">재생 버튼을 누르면 이 화면에서 바로 볼 수 있어요. 우리가 만든 영상이 아니라 유튜브의 외부 영상이에요.</p>
           {r.videos.map((v) => (
             <article className="item" key={v.id}>
-              <h3><a href={v.url} target="_blank" rel="noopener noreferrer">{v.title} <span aria-hidden>↗</span></a></h3>
+              <h3>{v.title}</h3>
+              <VideoEmbed id={v.id} title={v.title} />
+              <p className="meta2"><a href={v.url} target="_blank" rel="noopener noreferrer">유튜브에서 보기 <span aria-hidden>↗</span></a></p>
               <p className="meta2">{[v.channel, v.minutes ? `약 ${v.minutes}분` : ""].filter(Boolean).join(" · ")}</p>
               <p className="reason">{v.reason}</p>
               <WhyButton kind="video" id={v.id} title={v.title} channel={v.channel} reason={v.reason} ctx={ctx} />
