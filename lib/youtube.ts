@@ -54,7 +54,9 @@ export async function searchVideos(query: string, max = 3): Promise<Video[]> {
       publishedAt: i.snippet!.publishedAt ?? "",
     };
   });
+  // 2분 미만 영상(쇼츠 등)은 교육용으로 부족해서 뺀다
+  const usable = videos.filter((v) => v.minutes == null || v.minutes >= 2);
   if (cache.size > 200) cache.clear();
-  cache.set(ck, { at: Date.now(), videos });
-  return videos.slice(0, max);
+  cache.set(ck, { at: Date.now(), videos: usable });
+  return usable.slice(0, max);
 }

@@ -82,7 +82,12 @@ export function finalizeReport(r: ReportInput, ctx: { behavior: number; hasTask:
     firstPractice: { title: plain(r.firstPractice.title), ...(r.firstPractice.prompt ? { prompt: r.firstPractice.prompt } : {}) },
     dataGaps: r.dataGaps.map(plain),
     // 영상 정보는 모델 문장이 아니라 이번 검색에서 실제로 받은 API 결과로만 채운다(없는 영상은 버린다)
-    videos: (r.videos ?? []).flatMap((v) => { const f = ctx.videos?.get(v.videoId); return f ? [{ ...f, reason: plain(v.reason) }] : []; }),
+    videos: (() => {
+      const asked = r.videos ?? [];
+      const kept = asked.flatMap((v) => { const f = ctx.videos?.get(v.videoId); return f ? [{ ...f, reason: plain(v.reason) }] : []; });
+      console.log(`[agent] videos in report: ${asked.length}, kept: ${kept.length}, searched pool: ${ctx.videos?.size ?? 0}`);
+      return kept;
+    })(),
     droppedCourseIds: dropped,
   };
 }
