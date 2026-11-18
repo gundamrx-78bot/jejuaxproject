@@ -6,8 +6,8 @@ const ITEMS = [
   { href: "https://jejuaxdan.com/courses", label: "교육" },
   { href: "https://jejuaxdan.com/events", label: "행사 일정" },
   { href: "https://jejuaxdan.com/roadmaps", label: "로드맵" },
-  { href: "/diagnosis", label: "AI 진단", internal: true },
   { href: "https://jejuaxdan.com/about", label: "소개" },
+  { href: "/diagnosis", label: "AI 진단", internal: true },
   { href: "https://jejuaxdan.com/contact", label: "문의" },
 ];
 

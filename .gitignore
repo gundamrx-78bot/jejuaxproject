@@ -4,3 +4,8 @@ node_modules
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+_ref
+
+docs
+*.zip
+home-demo

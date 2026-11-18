@@ -1,4 +1,5 @@
 import { COURSES, EVENTS, type Course, JOB } from "./data";
+import { mapQuery } from "./maps";
 
 export const kstToday = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
@@ -30,6 +31,9 @@ export function summarize(c: Course, today = kstToday()) {
     applyState: applyState(c, today), applyOpenAt: c.applyOpenAt, applyCloseAt: c.applyCloseAt,
     classDate: c.scheduleNote ?? c.startAt?.slice(0, 10) ?? null,
     venue: [c.venueName, c.venueDetail].filter(Boolean).join(" ") || null,
+    mapQuery: mapQuery(c),
+    // 상세 페이지로 가는지, 행사 일정(달력) 목록으로만 가는지 구분(화면 안내 문구용)
+    linkKind: !c.link ? ("none" as const) : /\/events\/?$/.test(c.link) ? ("calendar" as const) : ("detail" as const),
     cost: c.cost, needsPaidSubscription: c.needsPaid, jobTags: c.jobTags,
     prerequisites: c.prerequisites, infoGaps: infoGaps(c), source: c.source, link: c.link ?? null,
   };

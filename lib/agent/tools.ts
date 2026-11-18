@@ -53,13 +53,26 @@ export const TOOL_DEFS: Tool[] = [
       type: "object",
       properties: {
         level: { type: "integer", minimum: 0, maximum: 4, description: "진단한 활용 단계" },
-        primaryStuck: { type: "string", description: "가장 큰 막힘 유형 코드" },
+        primaryStuck: { type: "string", enum: ["bad", "what", "tool", "stop", "trust", "repeat", "secure", "alone"], description: "가장 큰 막힘 유형 코드. 막힘 점검이 없으면 입력으로 판단해 가장 가까운 코드 하나를 고른다" },
         confidence: { type: "string", enum: ["high", "medium", "low"] },
+        taskRubric: {
+          type: "object",
+          description: "실습 과제(요청 문장)가 있을 때만 채점한다. 각 항목을 충족하면 true. quote에는 근거가 된 사용자 문장 일부를 인용한다.",
+          properties: {
+            purpose: { type: "boolean", description: "무엇을 만들어야 하는지 분명하다" },
+            context: { type: "boolean", description: "누구에게, 어떤 상황에서 쓰는지 적었다" },
+            conditions: { type: "boolean", description: "분량·형식·말투 중 하나 이상을 정했다" },
+            criteria: { type: "boolean", description: "원하는 결과의 기준이나 예시를 줬다" },
+            verify: { type: "boolean", description: "초안부터 받기·근거 요청 등 고쳐 가는 방식을 요청했다" },
+            quote: { type: "string" },
+          },
+          required: ["purpose", "context", "conditions", "criteria", "verify"],
+        },
         summary: { type: "string", description: "해요체 2~3문장 진단 요약" },
         evidence: { type: "array", items: { type: "string" }, description: "사용자의 어떤 답변이 이 진단의 근거인지" },
         blockers: { type: "array", items: { type: "object", properties: { title: { type: "string" }, why: { type: "string" }, fix: { type: "string" } }, required: ["title", "why", "fix"] } },
         recommendations: { type: "array", items: { type: "object", properties: { courseId: { type: "string" }, verdict: { type: "string", enum: ["recommend", "conditional"] }, reason: { type: "string" }, cautions: { type: "array", items: { type: "string" } } }, required: ["courseId", "verdict", "reason", "cautions"] } },
-        roadmap: { type: "array", items: { type: "object", properties: { title: { type: "string" }, detail: { type: "string" }, minutes: { type: "integer" } }, required: ["title", "detail"] } },
+        roadmap: { type: "array", description: "배울 순서. 2~4개 단계", items: { type: "object", properties: { title: { type: "string" }, detail: { type: "string" }, minutes: { type: "integer" } }, required: ["title", "detail"] } },
         firstPractice: { type: "object", properties: { title: { type: "string" }, prompt: { type: "string", description: "AI에 그대로 붙여 넣을 완성된 질문 문장(빈칸 표시 금지)" } }, required: ["title"] },
         dataGaps: { type: "array", items: { type: "string" }, description: "추천 근거로 쓰기에 데이터에 없던 정보" },
       },
@@ -86,7 +99,7 @@ export function runTool(name: string, input: unknown): ToolOutcome {
   switch (name) {
     case "get_rule_baseline": {
       const a = z.object({ stuck: z.string(), level: z.string(), job: z.string() }).safeParse(input);
-      if (!a.success || !STUCK[a.data.stuck] || !LEVEL[a.data.level] || !JOB[a.data.job]) return bad("허용되지 않은 코드값이에요. 사용자 입력의 코드를 그대로 쓰세요.");
+      if (!a.success || !STUCK[a.data.stuck] || !LEVEL[a.data.level]) return bad("허용되지 않은 코드값이에요. stuck은 bad·what·tool·stop·trust·repeat·secure·alone 중, level은 0~4 중 하나를 쓰세요.");
       const s = STUCK[a.data.stuck], l = LEVEL[a.data.level];
       return { content: J({ stuck: { name: s.name, cause: s.cause, how: s.how, first: s.first, tips: s.tips, promptTemplate: s.prompt }, level: { name: l.name, next: l.next }, jobExamples: TAX.jobExamples[a.data.job] ?? null, note: "기준표는 인터뷰 전 가설 v1이에요." }) };
     }
