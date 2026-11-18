@@ -1,5 +1,6 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { HistoryPanel, MemberBar, SaveBox, takePending, useMember, type SavedDiagnosis } from "./member";
 import type { Report } from "@/lib/agent/report";
 import { kakaoMapUrl, naverMapUrl } from "@/lib/maps";
 
@@ -94,7 +95,23 @@ export default function DiagnosisClient({ options }: { options: Options }) {
   const screens = buildScreens(a);
   const idx = Math.min(step, screens.length - 1);
   const cur = screens[idx];
-  const reset = () => { setPhase("form"); setReport(null); setStep(0); setA(initial()); };
+  const m = useMember();
+  const [stored, setStored] = useState(false);          // 저장된 결과를 다시 보는 중인지
+  const [pendingAnswers, setPendingAnswers] = useState<Record<string, unknown> | null>(null);
+  // 저장용 답변: 선택형만(하시는 일·막힌 상황 같은 직접 쓴 글은 저장하지 않는다)
+  const answersForSave = (): Record<string, unknown> => ({ schema: 2, firstUse: a.firstUse, tools: a.tools, b: a.b, d: a.d, weeklyMinutes: a.weeklyMinutes, budget: a.budget, mode: a.mode });
+  // 로그인 메일 링크로 돌아왔을 때, 로그인 전에 보던 결과를 다시 연다
+  useEffect(() => {
+    const pend = takePending();
+    if (pend) { setReport(pend.report); setSource("agent"); setPendingAnswers(pend.answers); setNotice("로그인 전에 보던 진단 결과예요. 아래에서 저장할 수 있어요."); setPhase("done"); }
+  }, []);
+  const openSaved = (d: SavedDiagnosis) => {
+    setReport(d.report); setSource("agent"); setSteps([]); setStored(true); setPendingAnswers(null);
+    setNotice(`${new Date(d.created_at).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })}에 저장한 진단 결과예요.`);
+    m?.setCurrentDiagnosisId(d.id);
+    setPhase("done");
+  };
+  const reset = () => { setPhase("form"); setReport(null); setStep(0); setA(initial()); setStored(false); setPendingAnswers(null); setNotice(""); m?.setCurrentDiagnosisId(null); };
 
   const pick = (s: Extract<Screen, { kind: "single" }>, v: string) => {
     setA((p) => s.set(p, v));
@@ -107,7 +124,7 @@ export default function DiagnosisClient({ options }: { options: Options }) {
   });
 
   async function submit() {
-    setErr(""); setNotice(""); setSteps([]); setReport(null); setPhase("running");
+    setErr(""); setNotice(""); setSteps([]); setReport(null); setStored(false); setPendingAnswers(null); m?.setCurrentDiagnosisId(null); setPhase("running");
     const ctrl = new AbortController(); abort.current = ctrl;
     const used = a.firstUse !== "never";
     const body = {
@@ -148,6 +165,7 @@ export default function DiagnosisClient({ options }: { options: Options }) {
   if (phase === "running" || (phase === "done" && report)) {
     return (
       <>
+        <MemberBar />
         {phase === "running" && (
           <section className="card" aria-live="polite">
             <h2>진단 agent가 분석 중이에요</h2>
@@ -158,7 +176,7 @@ export default function DiagnosisClient({ options }: { options: Options }) {
             <button className="btn ghost" type="button" onClick={() => { abort.current?.abort(); setPhase("form"); }}>취소</button>
           </section>
         )}
-        {phase === "done" && report && <ReportView r={report} source={source} notice={notice} steps={steps} jobText={a.jobText} onReset={reset} />}
+        {phase === "done" && report && <ReportView r={report} source={source} notice={notice} steps={steps} jobText={a.jobText} onReset={reset} extra={<SaveBox report={report} answers={pendingAnswers ?? answersForSave()} savedAlready={stored} />} />}
       </>
     );
   }
@@ -166,6 +184,21 @@ export default function DiagnosisClient({ options }: { options: Options }) {
   const canNext = cur.kind === "single" ? !!cur.get(a) : cur.kind === "multi" ? a.tools.length > 0 : cur.kind === "text" ? a.jobText.trim().length >= 2 : true;
   return (
     <form onSubmit={(e) => { e.preventDefault(); if (cur.kind === "final") submit(); }}>
+      {idx === 0 && (
+        <>
+          <MemberBar />
+          <HistoryPanel
+            onOpen={openSaved}
+            renderVideo={(v) => (
+              <>
+                <h3>{v.title}</h3>
+                <VideoEmbed id={v.video_id} title={v.title} channel={v.channel ?? undefined} minutes={v.minutes} />
+                <p className="meta2">{[v.channel, v.minutes ? `약 ${v.minutes}분` : "", "본 날 " + new Date(v.viewed_at).toLocaleDateString("ko-KR")].filter(Boolean).join(" · ")}</p>
+              </>
+            )}
+          />
+        </>
+      )}
       <div className="progress" aria-label={`${idx + 1} / ${screens.length} 단계`}>
         <div className="progress-bar"><i style={{ width: `${((idx + 1) / screens.length) * 100}%` }} /></div>
         <span className="meta">{cur.section} · {idx + 1} / {screens.length}</span>
@@ -267,8 +300,9 @@ function WhyButton({ kind, id, title, channel, reason, ctx }: { kind: "video" | 
 
 // 유튜브 영상을 이 화면에서 바로 재생한다. 처음엔 썸네일만 보여 주고, 재생 버튼을 누를 때 플레이어를 불러온다.
 // youtube-nocookie 주소를 써서 재생 전에는 유튜브 쿠키를 남기지 않는다.
-function VideoEmbed({ id, title }: { id: string; title: string }) {
+function VideoEmbed({ id, title, channel, minutes }: { id: string; title: string; channel?: string; minutes?: number | null }) {
   const [play, setPlay] = useState(false);
+  const m = useMember();
   if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return null;
   return (
     <div className="vembed">
@@ -281,7 +315,7 @@ function VideoEmbed({ id, title }: { id: string; title: string }) {
           referrerPolicy="strict-origin-when-cross-origin"
         />
       ) : (
-        <button type="button" onClick={() => setPlay(true)} aria-label={`${title} 재생`}>
+        <button type="button" onClick={() => { setPlay(true); m?.trackView({ id, title, channel, minutes }); }} aria-label={`${title} 재생`}>
           <img src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`} alt="" loading="lazy" />
           <span className="play" aria-hidden>▶</span>
         </button>
@@ -290,7 +324,7 @@ function VideoEmbed({ id, title }: { id: string; title: string }) {
   );
 }
 
-function ReportView({ r, source, notice, steps, jobText, onReset }: { r: Report; source: "agent" | "rules"; notice: string; steps: Step[]; jobText: string; onReset: () => void }) {
+function ReportView({ r, source, notice, steps, jobText, onReset, extra }: { r: Report; source: "agent" | "rules"; notice: string; steps: Step[]; jobText: string; onReset: () => void; extra?: React.ReactNode }) {
   const ctx = { jobText, level: r.level.code, stuck: r.primaryStuck.code };
   const conf = { high: "진단 근거가 충분해요", medium: "진단 근거가 보통이에요", low: "진단 근거가 적어서 참고용이에요" }[r.confidence];
   const lv = Number(r.level.code);
@@ -404,7 +438,7 @@ function ReportView({ r, source, notice, steps, jobText, onReset }: { r: Report;
           {r.videos.map((v) => (
             <article className="item" key={v.id}>
               <h3>{v.title}</h3>
-              <VideoEmbed id={v.id} title={v.title} />
+              <VideoEmbed id={v.id} title={v.title} channel={v.channel} minutes={v.minutes} />
               <p className="meta2"><a href={v.url} target="_blank" rel="noopener noreferrer">유튜브에서 보기 <span aria-hidden>↗</span></a></p>
               <p className="meta2">{[v.channel, v.minutes ? `약 ${v.minutes}분` : ""].filter(Boolean).join(" · ")}</p>
               <p className="reason">{v.reason}</p>
@@ -435,6 +469,8 @@ function ReportView({ r, source, notice, steps, jobText, onReset }: { r: Report;
           </Details>
         </section>
       )}
+
+      {extra}
 
       <button className="btn ghost" type="button" onClick={onReset}>다시 진단하기</button>
     </>

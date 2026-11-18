@@ -123,3 +123,13 @@ details.more summary { cursor: pointer; font-weight: 700; font-size: 15px; color
 .vembed button:hover img { opacity: 1; }
 .vembed .play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 72px; height: 50px; border-radius: 14px; background: rgba(230, 0, 0, .92); color: #fff; font-size: 22px; display: grid; place-items: center; }
 .vembed button:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+
+/* 회원: 로그인·저장·내 기록 */
+.memberbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; font-size: 14px; }
+.loginbox { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; width: 100%; }
+.loginbox input { flex: 1; min-width: 200px; font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
+.consent { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; margin: 8px 0 12px; }
+.consent input { margin-top: 5px; width: 18px; height: 18px; flex: none; }
+.histlist { list-style: none; padding: 0; margin: 8px 0; }
+.histlist li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.confirmrow { margin-top: 10px; }
