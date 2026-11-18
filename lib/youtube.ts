@@ -5,7 +5,11 @@ export type Video = { id: string; title: string; channel: string; url: string; m
 const TTL = 24 * 3600 * 1000;
 const cache = new Map<string, { at: number; videos: Video[] }>();
 
-export const youtubeEnabled = () => !!(process.env.YOUTUBE_API_KEY || "").trim();
+// 키 이름은 YOUTUBE_API_KEY 가 기본이고, 이미 다른 이름으로 저장한 경우도 함께 읽는다(Vercel 은 이름의 대소문자를 구분한다).
+const ytKey = () =>
+  (process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY || process.env.youtube_data_api_key || "").trim();
+
+export const youtubeEnabled = () => !!ytKey();
 
 const decode = (s: string) =>
   s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
@@ -21,7 +25,7 @@ type VideosRes = { items?: { id: string; contentDetails?: { duration?: string };
 
 /** 오류 메시지에 요청 주소(키가 들어 있음)를 넣지 않는다. */
 async function getJson<T>(path: string, params: Record<string, string>): Promise<T> {
-  const key = (process.env.YOUTUBE_API_KEY || "").trim();
+  const key = ytKey();
   const url = `https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams({ ...params, key }).toString()}`;
   const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
   if (!r.ok) throw new Error(`youtube ${path} ${r.status}`);
